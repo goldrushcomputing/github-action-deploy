@@ -1,0 +1,79 @@
+---
+# References:
+# - https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#example-using-an-action-in-the-same-repository-as-the-workflow
+# - https://docs.github.com/en/actions/creating-actions/creating-a-composite-action
+# - https://github.com/marketplace/actions/s3-deploy
+# - https://github.com/marketplace/actions/github-slack-notify
+
+name: Build and deploy
+
+branding:
+  icon: 'upload-cloud'
+  color: 'blue'
+
+inputs:
+  AWS_ACCESS_KEY_ID:
+    required: true
+  AWS_SECRET_ACCESS_KEY:
+    required: true
+  AWS_BUCKET:
+    required: true
+  AWS_REGION:
+    required: true
+  SLACK_WEBHOOK_URL:
+    required: true
+  SLACK_CHANNEL:
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Build and deploy Notification
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_CHANNEL: ${{ inputs.SLACK_CHANNEL }}
+        SLACK_TITLE: "Project: ${{ github.event.repository.name }}"
+        SLACK_MESSAGE: ${{ github.workflow }}
+        SLACK_COLOR: success
+        SLACK_ICON: ''
+        SLACK_FOOTER: ''
+        SLACK_USERNAME: ${{ github.actor }}
+        SLACK_WEBHOOK: ${{ inputs.SLACK_WEBHOOK_URL }}
+
+    - name: Install dependencies
+      shell: bash
+      run: yarn install
+
+    - name: Build the project
+      shell: bash
+      run: yarn build
+
+    - name: Deploy into S3
+      uses: reggionick/s3-deploy@v4
+      env:
+        AWS_ACCESS_KEY_ID: ${{ inputs.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.AWS_SECRET_ACCESS_KEY }}
+      with:
+        folder: ./dist
+        bucket: ${{ inputs.AWS_BUCKET }}
+        bucket-region: ${{ inputs.AWS_REGION }}
+        invalidation: /*
+        delete-removed: true
+        no-cache: true
+        private: true
+        files-to-include: '{.*/**,**}'
+
+    - name: Notification
+      uses: rtCamp/action-slack-notify@v2
+      if: ${{ always() }}
+      env:
+        SLACK_CHANNEL: ${{ inputs.SLACK_CHANNEL }}
+        SLACK_TITLE: "Project: ${{ github.event.repository.name }}"
+        SLACK_MESSAGE: ":white_check_mark: Success"
+        SLACK_MESSAGE_ON_FAILURE: ":x: Failed"
+        SLACK_MESSAGE_ON_CANCEL: ":x: Cancelled"
+        SLACK_COLOR: ${{ job.status }}
+        SLACK_FOOTER: ''
+        MSG_MINIMAL: true
+        SLACK_USERNAME: ${{ github.actor }}
+        SLACK_WEBHOOK: ${{ inputs.SLACK_WEBHOOK_URL }}

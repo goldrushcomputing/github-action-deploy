@@ -1,0 +1,64 @@
+---
+# References:
+# - https://github.com/marketplace/actions/github-slack-notify
+
+name: Slack Notification
+
+on:
+  workflow_call:
+    inputs:
+      SLACK_WEBHOOK_URL:
+        required: true
+        type: string
+      SLACK_CHANNEL:
+        required: true
+        type: string
+      IS_FAILED:
+        required: true
+        type: boolean
+      IS_CANCELLED:
+        required: true
+        type: boolean
+      IS_SUCCESSFUL:
+        required: true
+        type: boolean
+
+jobs:
+  notify-slack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Failure Notification
+        uses: rtCamp/action-slack-notify@v2
+        if: ${{ inputs.IS_FAILED }}
+        env:
+          SLACK_CHANNEL: ${{ inputs.SLACK_CHANNEL }}
+          SLACK_TITLE: ":x: Project: ${{ github.event.repository.name }}"
+          SLACK_MESSAGE: Process failed
+          SLACK_COLOR: failure
+          SLACK_FOOTER: ''
+          SLACK_USERNAME: ${{ github.actor }}
+          SLACK_WEBHOOK: ${{ inputs.SLACK_WEBHOOK_URL }}
+
+      - name: Cancelled Notification
+        uses: rtCamp/action-slack-notify@v2
+        if: ${{ inputs.IS_CANCELLED }}
+        env:
+          SLACK_CHANNEL: ${{ inputs.SLACK_CHANNEL }}
+          SLACK_TITLE: ":x: Project: ${{ github.event.repository.name }}"
+          SLACK_MESSAGE: Process cancelled
+          SLACK_COLOR: cancelled
+          SLACK_FOOTER: ''
+          SLACK_USERNAME: ${{ github.actor }}
+          SLACK_WEBHOOK: ${{ inputs.SLACK_WEBHOOK_URL }}
+
+      - name: Success Notification
+        uses: rtCamp/action-slack-notify@v2
+        if: ${{ inputs.IS_SUCCESSFUL }}
+        env:
+          SLACK_CHANNEL: ${{ inputs.SLACK_CHANNEL }}
+          SLACK_TITLE: ":white_check_mark: Project: ${{ github.event.repository.name }}"
+          SLACK_MESSAGE: Process completed successfully
+          SLACK_COLOR: success
+          SLACK_FOOTER: ''
+          SLACK_USERNAME: ${{ github.actor }}
+          SLACK_WEBHOOK: ${{ inputs.SLACK_WEBHOOK_URL }}

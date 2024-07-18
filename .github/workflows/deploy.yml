@@ -1,0 +1,76 @@
+---
+# References:
+# - https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts
+# - https://github.com/marketplace/actions/s3-deploy
+
+name: Deploy
+
+on:
+  workflow_call:
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+    inputs:
+      AWS_BUCKET:
+        required: true
+        type: string
+      AWS_REGION:
+        required: true
+        type: string
+      SLACK_WEBHOOK_URL:
+        required: true
+        type: string
+      SLACK_CHANNEL:
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start Deploy Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: ${{ inputs.SLACK_CHANNEL }}
+          SLACK_TITLE: "Project: ${{ github.event.repository.name }}"
+          SLACK_MESSAGE: Deploy start
+          SLACK_COLOR: good
+          SLACK_ICON: ''
+          SLACK_FOOTER: ''
+          SLACK_USERNAME: ${{ github.actor }}
+          SLACK_WEBHOOK: ${{ inputs.SLACK_WEBHOOK_URL }}
+
+      - name: Download dist
+        uses: actions/download-artifact@v4
+        with:
+          name: dist_artifact
+          path: dist
+
+      - name: Deploy into S3
+        uses: reggionick/s3-deploy@v4
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        with:
+          folder: ./dist
+          bucket: ${{ inputs.AWS_BUCKET }}
+          bucket-region: ${{ inputs.AWS_REGION }}
+          invalidation: /*
+          delete-removed: true
+          no-cache: true
+          private: true
+          files-to-include: '{.*/**,**}'
+
+      - name: Finish Deploy Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: ${{ inputs.SLACK_CHANNEL }}
+          SLACK_TITLE: "Project: ${{ github.event.repository.name }}"
+          SLACK_MESSAGE: Deploy finish
+          SLACK_COLOR: good
+          SLACK_ICON: ''
+          SLACK_FOOTER: ''
+          SLACK_USERNAME: ${{ github.actor }}
+          SLACK_WEBHOOK: ${{ inputs.SLACK_WEBHOOK_URL }}

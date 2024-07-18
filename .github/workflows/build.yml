@@ -1,0 +1,70 @@
+---
+# References:
+# - https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts
+
+name: Build
+
+on:
+  workflow_call:
+    inputs:
+      BRANCH_NAME:
+        default: master
+        type: string
+      SLACK_WEBHOOK_URL:
+        required: true
+        type: string
+      SLACK_CHANNEL:
+        required: true
+        type: string
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start Build Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: ${{ inputs.SLACK_CHANNEL }}
+          SLACK_TITLE: "Project: ${{ github.event.repository.name }}"
+          SLACK_MESSAGE: Build start
+          SLACK_COLOR: good
+          SLACK_ICON: ''
+          SLACK_FOOTER: ''
+          SLACK_USERNAME: ${{ github.actor }}
+          SLACK_WEBHOOK: ${{ inputs.SLACK_WEBHOOK_URL }}
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.BRANCH_NAME }}
+
+      - name: Download env file
+        uses: actions/download-artifact@v4
+        with:
+          name: env_artifact
+
+      - name: Install dependencies
+        shell: bash
+        run: yarn install
+
+      - name: Build the project
+        shell: bash
+        run: yarn build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist_artifact
+          path: dist
+          if-no-files-found: error
+
+      - name: Finish Build Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: ${{ inputs.SLACK_CHANNEL }}
+          SLACK_TITLE: "Project: ${{ github.event.repository.name }}"
+          SLACK_MESSAGE: Build finish
+          SLACK_COLOR: good
+          SLACK_ICON: ''
+          SLACK_FOOTER: ''
+          SLACK_USERNAME: ${{ github.actor }}
+          SLACK_WEBHOOK: ${{ inputs.SLACK_WEBHOOK_URL }}
