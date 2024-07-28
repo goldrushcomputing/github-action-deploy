@@ -1,72 +1,6 @@
-# AWS S3 Deploy GitHub Action
+# Deploy use GitHub Action
 
-## Usage
-
-```yaml
-      - name: Deploy changes
-        uses: goldrushcomputing/s3-deploy@v1
-        with:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_BUCKET: ${{ vars.AWS_BUCKET }}
-          AWS_REGION: ${{ vars.AWS_REGION }}
-          SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
-          SLACK_CHANNEL: ${{ vars.SLACK_CHANNEL }}
-```
-
-## Arguments
-
-S3 Deploy's Action supports inputs from the user listed in the table below:
-
-| Input                   | Type   | Required | Description               |
-| ----------------------- | ------ | -------- | ------------------------- |
-| `AWS_ACCESS_KEY_ID`     | string | Yes      | The AWS_ACCESS_KEY_ID     |
-| `AWS_SECRET_ACCESS_KEY` | string | Yes      | The AWS_SECRET_ACCESS_KEY |
-| `AWS_BUCKET`            | string | Yes      | The AWS_BUCKET            |
-| `AWS_REGION`            | string | Yes      | The AWS_REGION            |
-| `SLACK_WEBHOOK_URL`     | string | Yes      | The SLACK_WEBHOOK_URL     |
-| `SLACK_CHANNEL`         | string | Yes      | The SLACK_CHANNEL         |
-
-### Example `deploy_staging.yml` with S3 Deploy Action
-
-```yaml
----
-# References:
-# - https://github.com/marketplace/actions/checkout
-# - https://github.com/marketplace/actions/create-env-file
-
-name: Build and deploy
-
-on:
-  push:
-    branches: master
-
-jobs:
-  deploy_staging:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Fetch changes
-        uses: actions/checkout@v4
-
-      - name: Build env file
-        uses: SpicyPizza/create-envfile@v2.0
-        with:
-          envkey_NODE_ENV: ${{ vars.STAGING_NODE_ENV }}
-          directory: .
-          file_name: .env
-
-      - name: Deploy changes
-        uses: goldrushcomputing/s3-deploy@v1
-        with:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_BUCKET: ${{ vars.AWS_BUCKET }}
-          AWS_REGION: ${{ vars.AWS_REGION }}
-          SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
-          SLACK_CHANNEL: ${{ vars.SLACK_CHANNEL }}
-```
----
-### Example `Reuse workflow`
+### Example `Reuse workflow to Deploy into AWS S3`
 
 ```yaml
 ---
@@ -106,14 +40,11 @@ jobs:
           if-no-files-found: error
 
   build:
-    uses: goldrushcomputing/s3-deploy/.github/workflows/build.yml@v1
+    uses: goldrushcomputing/s3-deploy/.github/workflows/s3/build.yml@v2
     needs: build_env_file
-    with:
-      SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
-      SLACK_CHANNEL: ${{ vars.SLACK_CHANNEL }}
 
   deploy:
-    uses: goldrushcomputing/s3-deploy/.github/workflows/deploy.yml@v1
+    uses: goldrushcomputing/s3-deploy/.github/workflows/s3/deploy.yml@v2
     needs: build
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -121,11 +52,9 @@ jobs:
     with:
       AWS_BUCKET: ${{ vars.AWS_BUCKET }}
       AWS_REGION: ${{ vars.AWS_REGION }}
-      SLACK_WEBHOOK_URL: ${{ vars.SLACK_WEBHOOK_URL }}
-      SLACK_CHANNEL: ${{ vars.SLACK_CHANNEL }}
 
   notify-slack:
-    uses: ./.github/workflows/slack_notification.yml
+    uses: goldrushcomputing/s3-deploy/.github/workflows/slack_notification.yml@v2
     needs: [build_env_file, build, deploy]
     if: ${{ always() }}
     with:
@@ -134,4 +63,46 @@ jobs:
       IS_FAILED: ${{ contains(needs.*.result, 'failure') }}
       IS_CANCELLED: ${{ !contains(needs.*.result, 'failure') && (contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')) }}
       IS_SUCCESSFUL: ${{ !(contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')) }}
+```
+
+---
+### Example `Reuse workflow to Deploy into AWS EC2`
+
+```
+jobs:
+  build_env_file:
+    runs-on: ubuntu-latest
+    outputs:
+      WORKSPACE: ${{ vars.WORKSPACE }}
+      CORE_DIRECTORY: ${{ vars.CORE_DIRECTORY }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Copy ${{ vars.ENV_DEPLOY }} file to ${{ vars.ENVIRONMENT }}_a
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.BACKEND_HOST }}
+        username: ${{ secrets.BACKEND_USERNAME }}
+        key: ${{ secrets.BACKEND_PRIVATE_KEY }}
+        source: ${{ vars.ENV_DEPLOY }}
+        target: ${{ vars.WORKSPACE }}/${{ vars.CORE_DIRECTORY }}
+
+  build_and_deploy_staging_a:
+    uses: goldrushcomputing/s3-deploy/.github/workflows/ec2/build_and_run_backend_server.yml@v2
+    needs: build_env_file
+    secrets:
+      BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
+      BACKEND_USERNAME: ${{ secrets.BACKEND_USERNAME }}
+      BACKEND_PRIVATE_KEY: ${{ secrets.BACKEND_PRIVATE_KEY }}
+    with:
+      BRANCH_NAME: ${{ vars.BRANCH_NAME }}
+      IMAGE_NAME: ${{ vars.IMAGE_NAME }}
+      CONTAINER_NAME: ${{ vars.CONTAINER_NAME }}
+      DOCKER_NETWORK_NAME: ${{ vars.DOCKER_NETWORK_NAME }}
+      WORKSPACE: ${{ vars.WORKSPACE }}
+      CORE_DIRECTORY: ${{ vars.CORE_DIRECTORY }}
+      NODE_USER_ID: ${{ vars.NODE_USER_ID }}
+      NODE_GROUP_ID: ${{ vars.NODE_GROUP_ID }}
+      NODE_PORT: ${{ vars.NODE_PORT }}
 ```

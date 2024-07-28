@@ -1,0 +1,87 @@
+---
+name: Build and deploy backend server
+
+on:
+  workflow_call:
+    secrets:
+      BACKEND_HOST:
+        required: true
+      BACKEND_USERNAME:
+        required: true
+      BACKEND_PRIVATE_KEY:
+        required: true
+    inputs:
+      BRANCH_NAME:
+        type: string
+      IMAGE_NAME:
+        type: string
+      CONTAINER_NAME:
+        type: string
+      DOCKER_NETWORK_NAME:
+        type: string
+      RESET_DB:
+        type: string
+      WORKSPACE:
+        type: string
+      CORE_DIRECTORY:
+        type: string
+      NODE_USER_ID:
+        type: string
+      NODE_GROUP_ID:
+        type: string
+      NODE_PORT:
+        type: string
+
+env:
+  ENV_DEPLOY: .env_deploy
+  TMP_DIR: /tmp
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.BRANCH_NAME }}
+
+    - name: Build ${{ env.ENV_DEPLOY }} file
+      env:
+        INPUTS: ${{ toJSON(inputs) }}
+      shell: bash
+      run: |
+        echo "$INPUTS" > inputs.json
+        scripts/json_to_env.rb inputs.json $ENV_DEPLOY
+
+    - name: Copy ${{ env.ENV_DEPLOY }} file to server
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.BACKEND_HOST }}
+        username: ${{ secrets.BACKEND_USERNAME }}
+        key: ${{ secrets.BACKEND_PRIVATE_KEY }}
+        source: ${{ env.ENV_DEPLOY }}
+        target: ${{ env.TMP_DIR }}
+
+    - name: Fetch code
+      uses: appleboy/ssh-action@v1.0.3
+      env:
+        INPUTS: ${{ toJSON(inputs) }}
+      with:
+        host: ${{ secrets.BACKEND_HOST }}
+        username: ${{ secrets.BACKEND_USERNAME }}
+        key: ${{ secrets.BACKEND_PRIVATE_KEY }}
+        script: |
+          cd ${{ inputs.WORKSPACE }}/${{ inputs.CORE_DIRECTORY }}
+          git fetch --all --prune
+          git checkout ${{ inputs.BRANCH_NAME }}
+          git reset --hard origin/${{ inputs.BRANCH_NAME }}
+
+    - name: Build and deploy
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.BACKEND_HOST }}
+        username: ${{ secrets.BACKEND_USERNAME }}
+        key: ${{ secrets.BACKEND_PRIVATE_KEY }}
+        script: |
+          cd ${{ inputs.WORKSPACE }}/${{ inputs.CORE_DIRECTORY }}
+          ENV_DEPLOY=${{ env.TMP_DIR }}/${{ env.ENV_DEPLOY }} scripts/build_and_deploy_staging.sh
