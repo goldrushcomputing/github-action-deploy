@@ -51,7 +51,7 @@ jobs:
       shell: bash
       run: |
         echo "$INPUTS" > inputs.json
-        scripts/json_to_env.rb inputs.json $ENV_DEPLOY
+        deploy_scripts/json_to_env.rb inputs.json $ENV_DEPLOY
 
     - name: Copy ${{ env.ENV_DEPLOY }} file to server
       uses: appleboy/scp-action@v0.1.7
@@ -84,4 +84,4 @@ jobs:
         key: ${{ secrets.BACKEND_PRIVATE_KEY }}
         script: |
           cd ${{ inputs.WORKSPACE }}/${{ inputs.CORE_DIRECTORY }}
-          ENV_DEPLOY=${{ env.TMP_DIR }}/${{ env.ENV_DEPLOY }} scripts/build_and_deploy_staging.sh
+          ENV_DEPLOY=${{ env.TMP_DIR }}/${{ env.ENV_DEPLOY }} deploy_scripts/build_and_deploy_backend_server.sh

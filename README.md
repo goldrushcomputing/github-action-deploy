@@ -40,11 +40,11 @@ jobs:
           if-no-files-found: error
 
   build:
-    uses: goldrushcomputing/s3-deploy/.github/workflows/s3/build.yml@v2
+    uses: goldrushcomputing/github_action_deploy/.github/workflows/s3_build.yml@v1.0.1
     needs: build_env_file
 
   deploy:
-    uses: goldrushcomputing/s3-deploy/.github/workflows/s3/deploy.yml@v2
+    uses: goldrushcomputing/github_action_deploy/.github/workflows/s3_deploy.yml@v1.0.1
     needs: build
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -54,7 +54,7 @@ jobs:
       AWS_REGION: ${{ vars.AWS_REGION }}
 
   notify-slack:
-    uses: goldrushcomputing/s3-deploy/.github/workflows/slack_notification.yml@v2
+    uses: goldrushcomputing/github_action_deploy/.github/workflows/slack_notification.yml@v1.0.1
     needs: [build_env_file, build, deploy]
     if: ${{ always() }}
     with:
@@ -89,7 +89,7 @@ jobs:
         target: ${{ vars.WORKSPACE }}/${{ vars.CORE_DIRECTORY }}
 
   build_and_deploy_staging_a:
-    uses: goldrushcomputing/s3-deploy/.github/workflows/ec2/build_and_run_backend_server.yml@v2
+    uses: goldrushcomputing/github_action_deploy/.github/workflows/ec2_build_and_run_backend_server.yml@v1.0.1
     needs: build_env_file
     secrets:
       BACKEND_HOST: ${{ secrets.BACKEND_HOST }}
